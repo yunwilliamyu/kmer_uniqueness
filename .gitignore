@@ -1,0 +1,4 @@
+*.swp
+*.o
+gmon.out
+ref_distance_variable
