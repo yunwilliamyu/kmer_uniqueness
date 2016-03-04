@@ -11,14 +11,20 @@
 #include <omp.h>
 #include <cassert>
 
+#ifdef GCCINT128
+typedef __uint128_t readseq;
+const int ksize_max = 64;
+#else
 typedef uint64_t readseq;
+const int ksize_max = 32;
+#endif
 /*
  * A = 00
  * C = 01
  * G = 10
  * T = 11
 */ 
-int ksize = 32; // default k-mer size, but *always* gets overwritten
+int ksize = ksize_max; // default k-mer size, but *always* gets overwritten
 
 std::vector<readseq> encode_read_vector_full(FILE *input)
 {
@@ -115,15 +121,19 @@ int has_hamming_neighbor(const std::vector<readseq> & dict, const readseq x) {
 int main( int argc, char *argv[])
 {
 	if (argc < 3) {
-		std::cerr<< "Usage: " << argv[0] << " kmer_size input_file" << std::endl;
-		std::cerr<< "\tExamines the uniqueness of the reference with respect to exact duplicates and Hamming neighbors." << std::endl;
+		std::cerr << "Usage: " << argv[0] << " kmer_size input_file" << std::endl;
+		std::cerr << "\tExamines the uniqueness of the reference with respect to exact duplicates and Hamming neighbors." << std::endl;
+		std::cerr << "\tkmer_size should be between 0 and " << (ksize_max) << "." << std::endl;
 		exit(0);
     }
 
     ksize = atoi(argv[1]);
     // Must fit in integer size.
-    assert(i<32);
-    assert(i>0);
+    if ((ksize <= 0)||(ksize > ksize_max)) {
+		std::cerr << "\tkmer_size should be between 0 and " << (ksize_max) << "." << std::endl;
+        exit(0);
+    }
+
     FILE *input = fopen(argv[2], "r");
 
     std::vector<readseq> database;
