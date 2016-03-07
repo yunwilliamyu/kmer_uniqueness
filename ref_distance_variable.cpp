@@ -12,7 +12,7 @@
 #include <cassert>
 
 #ifdef GCCINT128
-typedef __uint128_t readseq;
+typedef unsigned __int128 readseq;
 const int ksize_max = 64;
 #else
 typedef uint64_t readseq;
@@ -25,6 +25,10 @@ const int ksize_max = 32;
  * T = 11
 */ 
 int ksize = ksize_max; // default k-mer size, but *always* gets overwritten
+
+const readseq big_one = 1;
+const readseq big_two = 2;
+const readseq big_three = 3;
 
 std::vector<readseq> encode_read_vector_full(FILE *input)
 {
@@ -42,15 +46,15 @@ std::vector<readseq> encode_read_vector_full(FILE *input)
                 ++i;
 				break;
 			case 'C': case 'c': // store as 01
-				ans = (ans>>2)+(1ul<<(ksize*2 - 2));
+				ans = (ans>>2)+(big_one<<(ksize*2 - 2));
                 ++i;
 				break;
 			case 'G': case 'g': // store as 10
-				ans = (ans>>2)+(2ul<<(ksize*2 - 2));
+				ans = (ans>>2)+(big_two<<(ksize*2 - 2));
                 ++i;
 				break;
 			case 'T': case 't': // store as 11
-				ans = (ans>>2)+(3ul<<(ksize*2 - 2));
+				ans = (ans>>2)+(big_three<<(ksize*2 - 2));
                 ++i;
 				break;
 			case '\n':
@@ -62,7 +66,7 @@ std::vector<readseq> encode_read_vector_full(FILE *input)
                 i = 0;
                 ans = 0;
 		}
-        assert((ans >> (ksize*2-2)) ==0);
+        assert((ans >> (ksize*2)) ==0);
 		if (i>=ksize)
 			anslist.push_back(ans);
         ch = getc(input);
@@ -76,7 +80,7 @@ std::string decode_read(readseq e)
 	a[ksize]=0;
 	for (int i=31; i>=0; --i)
 	{
-		switch ((e & (3ul<<(ksize*2 - 2)))>>(ksize*2 - 2)) {
+		switch ((e & (big_three<<(ksize*2 - 2)))>>(ksize*2 - 2)) {
 			case 0:
 				a[i]='A';
 				break;
@@ -120,6 +124,29 @@ int has_hamming_neighbor(const std::vector<readseq> & dict, const readseq x) {
 
 int main( int argc, char *argv[])
 {
+    /*
+    unsigned __int128 a = 0;
+    unsigned __int128 b = 6 ;
+    unsigned __int128 c = b << 96;
+
+    if (a == b) {
+        std::cerr << "A = B" << std::endl;
+    } else {
+        std::cerr << "NOPENOPE A = B" << std::endl;
+    }
+    if (a == c) {
+        std::cerr << "A = B" << std::endl;
+    } else {
+        std::cerr << "NOPENOPE A = B" << std::endl;
+    }
+
+
+    std::cerr << sizeof(short) << std::endl;
+    std::cerr << sizeof(int) << std::endl;
+    std::cerr << sizeof(long) << std::endl;
+    std::cerr << sizeof(long long) << std::endl;
+    std::cerr << sizeof(unsigned __int128) << std::endl;
+    */
 	if (argc < 3) {
 		std::cerr << "Usage: " << argv[0] << " kmer_size input_file" << std::endl;
 		std::cerr << "\tExamines the uniqueness of the reference with respect to exact duplicates and Hamming neighbors." << std::endl;
@@ -139,45 +166,47 @@ int main( int argc, char *argv[])
     std::vector<readseq> database;
     std::cerr << "Reading reference to database" << std::endl;
     database = encode_read_vector_full(input);
-    std::cout << "\tTotal loci:\t" << database.size() << std::endl;
+    unsigned int totalloci = database.size();
+    std::cout << "\tTotal loci:\t" << totalloci << std::endl;
 
     std::cerr << "Sorting database" << std::endl;
-	__gnu_parallel::sort(database.begin(),database.end());
+	//__gnu_parallel::sort(database.begin(),database.end());
+    std::sort(database.begin(),database.end());
 
     std::cerr << "Deduplicating" << std::endl;
-    std::vector<readseq> dict; // unique'd version of database
-    dict.reserve(database.size());
-    std::vector<char> key; // 0 = unique; 1 = exact match; 2 = no exact match but hamming neighbor
-    key.resize(database.size());
+    // We no longer create another copy of database called dict, but do everything in place to save RAM
+    //std::vector<readseq> dict; // unique'd version of database
+    //dict.reserve(database.size());
+    std::vector<int> exact_matches; // # of copies including itself
+    exact_matches.resize(database.size(),1);
     long i = 0;
-    readseq last = -1;
-    for (auto it = database.begin(); it != database.end(); ++it) {
-        if (last != *it) {
-            dict.push_back(*it);
-            ++i;
+    for (unsigned int j=0; j < database.size(); ++j) {
+        if (database[i] == database[j]) {
+            ++(exact_matches[i]);
         } else {
-            key[i-1] = 1;
+            database[++i] = database[j];
         }
-        last = *it;
     }
-    // Clear database
-    std::vector<readseq>().swap(database);
-    std::cerr << "\tUnique k-mers:\t" << dict.size() << std::endl;
+    database.resize(i+1);
+    exact_matches.resize(database.size());
+    std::cerr << "\tUnique k-mers:\t" << database.size() << std::endl;
     long int exact_match_count = 0;
-    for (unsigned long i = 0; i != dict.size(); ++i ) {
-        if (key[i]==1) {
+    for (unsigned long i = 0; i != database.size(); ++i ) {
+        if (exact_matches[i]>1) {
             ++exact_match_count;
         }
     }
     std::cerr << "\tNon-unique loci:\t" << exact_match_count << std::endl;
-    std::cerr << "\tUnique loci:\t" << dict.size() - exact_match_count << std::endl;
+    std::cerr << "\tUnique loci:\t" << database.size() - exact_match_count << std::endl;
 
     std::cerr << "Notating all locations with Hamming neighbors: " << std::endl;
-    long dict_size = dict.size();
+    long database_size = database.size();
+    std::vector<char> hamming_matches; // # of copies including itself
+    hamming_matches.resize(database.size(),1);
 #pragma omp parallel for
-    for (long k = 0; k <= dict_size; ++k ) {
-        if ((key[k]==0)&&(has_hamming_neighbor(dict, dict[k])==2)) {
-            key[k] = 2;
+    for (long k = 0; k <= database_size; ++k ) {
+        if (has_hamming_neighbor(database, database[k])==2) {
+            hamming_matches[k] = 2;
         }
         /*if (k%1000 == 0) {
             std::cerr << k << "\r";
@@ -185,13 +214,19 @@ int main( int argc, char *argv[])
     }
     std::cerr << std::endl;
     long int hamming_match_count = 0;
-    for (unsigned long i = 0; i != dict.size(); ++i ) {
-        if (key[i]==2) {
+    long int unambig_count = 0;
+    for (unsigned long i = 0; i != database.size(); ++i ) {
+        if (hamming_matches[i]==2) {
             ++hamming_match_count;
+        } else if (exact_matches[i]>1) {
+            // deliberately left empty
+        } else {
+            ++unambig_count;
         }
     }
-    std::cerr << "\tHamming-ed locations: " << hamming_match_count << std::endl;
-    std::cerr << "\tUnambiguous locations: " << dict.size() - exact_match_count - hamming_match_count << std::endl;
+    std::cerr << "\tHamming-ed locations (incl. locations that already have exact matches): " << hamming_match_count << std::endl;
+    //std::cerr << "\tUnambiguous locations: " << database.size() - exact_match_count - hamming_match_count << std::endl;
+    std::cerr << "\tUnambiguous locations: " << unambig_count << std::endl;
 
 
 /*
