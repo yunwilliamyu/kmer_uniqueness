@@ -28,7 +28,8 @@ for line in fileinput.input():
     elif (line.strip().startswith("Unique loci:")):
         uniqueloci.append(int(line.replace("Unique loci:","")))
     elif (line.strip().startswith("Hamming-ed locations:")):
-        hammingloci.append(int(line.replace("Hamming-ed locations:","")))
+        pass
+        #hammingloci.append(int(line.replace("Hamming-ed locations:","")))
     elif (line.strip().startswith("Unambiguous locations:")):
         unambigloci.append(int(line.replace("Unambiguous locations:","")))
 
@@ -38,7 +39,7 @@ print totalloci
 print uniquekmers
 print nonuniqueloci
 print uniqueloci
-print hammingloci
+#print hammingloci
 print unambigloci
 
 plt.ioff()

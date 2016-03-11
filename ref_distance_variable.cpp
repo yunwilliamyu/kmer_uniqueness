@@ -101,7 +101,7 @@ std::string decode_read(readseq e)
 }
 
 // All the potential Hamming neighbors
-inline readseq mask(int i) {return ~(3UL << (2*i));}
+inline readseq mask(int i) {return ~(big_three << (2*i));}
 inline readseq add(int i,readseq j) {return j << (2*i); }
 inline readseq testers(int i, int j, readseq work) {return (work & mask(i)) + add(i,j);}
 
